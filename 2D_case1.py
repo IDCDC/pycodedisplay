@@ -7,11 +7,8 @@ from fealpy.functionspace import ParametricLagrangeFiniteElementSpace
 from fealpy.boundarycondition import DirichletBC
 from fealpy.mesh import MeshFactory as MF
 
-
-import sys
-sys.path.append('..')
-from fealpython.PDEmodel_MsFEM1 import PDE2
-from fealpython.MultiscaleFiniteElementSpace import MultiscaleFiniteElementSpace
+from PDEmodel_MsFEM1 import PDE2
+from MultiscaleFiniteElementSpace import MultiscaleFiniteElementSpace
 
 
 
@@ -101,29 +98,20 @@ mylog.close()
 pi = np.pi
 
 P = 1.8
-# P=1
-
-# q = 20
 
 
-#eps = 1/15*pi   #epsilon
-#eps = 0.64/nxc   #epsilon
-eps = 0.25
-# eps = 8e-03
-#eps = 0.0001
-# eps = 1
-# eps = 0.16
+eps = 0.25  #epsilon
 
 
 # 求解区域
 box = np.array([0, 1, 0, 1])
 
 # 有限元精细解
-NX = NY = 2**7
+NX = NY = 2**3
 u_FEM, error = FEM(box, NX, NY, q=20)
 
 n1 = 1
-n2 = 7
+n2 = 10
 
 
 er_FEM = np.zeros(n2-n1)         # 有限元误差
@@ -156,8 +144,8 @@ for i in range(n2-n1-1):
     ords_Oms2[i] = -np.log(er_Oms2[i+1]/er_Oms2[i]) /np.log(2)
 
 
-mylog = open('data.log', mode='a', encoding='utf-8')
-print("The code Start time: ", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), file=mylog)
+mylog = open('data_space.log', mode='a', encoding='utf-8')
+print("The code End time: ", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), file=mylog)
 mylog.close()
 
 # 打印结果

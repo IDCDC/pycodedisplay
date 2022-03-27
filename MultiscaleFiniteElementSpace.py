@@ -199,11 +199,11 @@ class MultiscaleFiniteBasis:
         
         
 
-class MultiscaleFiniteElementPGSpace:
+class MultiscaleFiniteElementSpace:
     def __init__(self, func_a, box, nxc, nyc, nxf=8, nyf=8,
                  q=None, basisboundarytype='L', mesh=None):
         """
-        Petrov-Galerkin 耦合基函数
+        
 
         Parameters
         ----------
@@ -278,17 +278,6 @@ class MultiscaleFiniteElementPGSpace:
         subbox[3] =  subbox[2] + self.ly/self.nyc
         return subbox
     
-    def PG_basis(self):
-        xPG = np.linspace(0, 1, self.nxf+1).reshape(1, -1)
-        yPG = np.linspace(0, 1, self.nyf+1).reshape(-1, 1)
-        APG_cell = np.zeros((self.nnf, 4))
-        APG_cell[:, 0] = ((1 - xPG) * (1 - yPG)).flat
-        APG_cell[:, 1] = ((1 - xPG) * yPG).flat
-        APG_cell[:, 2] = (xPG * (1 - yPG)).flat
-        APG_cell[:, 3] = (xPG * yPG).flat
-        print("APG:\n", APG_cell)
-        return APG_cell
-            
     def basis_stiffmatrix(self, returntype='PhiA', q=None):
         """
         考虑到基函数与其刚度矩阵的特殊性，特将其起计算结合到一起
@@ -317,7 +306,6 @@ class MultiscaleFiniteElementPGSpace:
             A = np.zeros((self.ncc, 4, 4))
         elif returntype == 'PhiA':
             Phi, A = np.zeros((self.ncc, 4, self.nnf)), np.zeros((self.ncc, 4, 4))
-            
         
         # 逐单元求解子问题
         for ith in range(self.ncc):
@@ -345,10 +333,10 @@ class MultiscaleFiniteElementPGSpace:
             if returntype == 'Phi':
                 Phi[ith] = phi_cell
             elif returntype == 'A':
-                A[ith] = phi_cell @ A_sub @ self.PG_basis()
+                A[ith] = phi_cell @ A_sub @ phi_cell.T
             elif returntype == 'PhiA':
                 Phi[ith] = phi_cell
-                A[ith] = phi_cell @ A_sub @ self.PG_basis()
+                A[ith] = phi_cell @ A_sub @ phi_cell.T
         
         if returntype == 'Phi':
             return Phi
@@ -394,7 +382,7 @@ class MultiscaleFiniteElementPGSpace:
             mesh_sub = MF.boxmesh2d(box_sub, self.nxf, self.nyf, meshtype='quad', p=1)
             space_sub = ParametricLagrangeFiniteElementSpace(mesh_sub, p=1, q=q)
             M_sub = space_sub.mass_matrix(c=self.a, q=q)
-            M[ith] = Phi[ith] @ M_sub @ self.PG_basis()
+            M[ith] = Phi[ith] @ M_sub @ Phi[ith].T
         cell2dof = self.cell_to_dof()
         I = np.broadcast_to(cell2dof[:, :, None], shape=M.shape)
         J = np.broadcast_to(cell2dof[:, None, :], shape=M.shape)
@@ -404,10 +392,20 @@ class MultiscaleFiniteElementPGSpace:
     def source_vector(self, f, Phi=None, q=None):
         """     组装载荷向量， f 为右端项函数
         """
-        
+        Phi = Phi if Phi is not None else self.phi()
         q=q if q is not None else self.q
-        space_sub = ParametricLagrangeFiniteElementSpace(self.mesh, p=1, q=q)
-        F = space_sub.source_vector(f, q=q)
+        bb = np.zeros((self.ncc, 4))
+        
+        # 逐单元计算单元载荷向量
+        for ith in range(self.ncc):
+            box_sub = self.subbox_generator(ith)
+            mesh_sub = MF.boxmesh2d(box_sub, self.nxf, self.nyf, meshtype='quad', p=1)
+            space_sub = ParametricLagrangeFiniteElementSpace(mesh_sub, p=1, q=q)
+            F_sub = space_sub.source_vector(f, q=q)
+            bb[ith] = Phi[ith] @ F_sub
+        cell2dof = self.cell_to_dof()
+        F = np.zeros(self.nnc)
+        np.add.at(F, cell2dof, bb)
         return F
     
     def L2_error_u(self, u, uh, Phi=None, q=None):
